@@ -1,124 +1,31 @@
 name: Build DANZSTRAIGHT APK
-
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
-
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Auto-Fix Struktur File & AndroidX
-        run: |
-          # 1. Bersihkan spasi tak sengaja di nama file/folder akibat keyboard HP
-          find . -depth -name "* *" -execdir bash -c 'mv "$1" "${1// /}"' _ {} \; || true
-
-          # 2. Buat gradle.properties wajib untuk library Shizuku (AndroidX)
-          cat << 'EOF' > gradle.properties
-          org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.enableJetifier=true
-          android.nonTransitiveRClass=true
-          EOF
-
-          # 3. Pastikan settings.gradle valid
-          cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "DANZSTRAIGHT"
-          include ':app'
-          EOF
-
-          # 4. Pastikan root build.gradle valid
-          cat << 'EOF' > build.gradle
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-          }
-          EOF
-
-          # 5. Pastikan folder utama tersedia dan pindahkan file jika salah taruh di luar
-          mkdir -p app/src/main/java/com/danzstraight/vip
-          [ -f "AndroidManifest.xml" ] && mv AndroidManifest.xml app/src/main/AndroidManifest.xml || true
-          [ -f "MainActivity.java" ] && mv MainActivity.java app/src/main/java/com/danzstraight/vip/MainActivity.java || true
-          [ -f "OverlayService.java" ] && mv OverlayService.java app/src/main/java/com/danzstraight/vip/OverlayService.java || true
-
-          # 6. Pastikan app/build.gradle valid
-          cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-
-          android {
-              namespace 'com.danzstraight.vip'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.danzstraight.vip"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 3
-                  versionName "3.0-DIRECT-FF"
-              }
-
-              buildTypes {
-                  debug {
-                      minifyEnabled false
-                  }
-                  release {
-                      minifyEnabled false
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          dependencies {
-              implementation 'dev.rikka.shizuku:api:13.1.5'
-              implementation 'dev.rikka.shizuku:provider:13.1.5'
-          }
-          EOF
-
-          echo "=== Struktur File Saat Ini ==="
-          find app -maxdepth 6
-
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - run: mkdir -p app/src/main/java/com/danzstraight/vip
+      - run: for f in $(find . -name "*AndroidManifest*"); do [ "$f" != "./app/src/main/AndroidManifest.xml" ] && cp "$f" app/src/main/AndroidManifest.xml || true; done
+      - run: for f in $(find . -name "*MainActivity*"); do [ "$f" != "./app/src/main/java/com/danzstraight/vip/MainActivity.java" ] && cp "$f" app/src/main/java/com/danzstraight/vip/MainActivity.java || true; done
+      - run: for f in $(find . -name "*OverlayService*"); do [ "$f" != "./app/src/main/java/com/danzstraight/vip/OverlayService.java" ] && cp "$f" app/src/main/java/com/danzstraight/vip/OverlayService.java || true; done
+      - run: sed -i 's/package="com.danzstraight.vip"//g' app/src/main/AndroidManifest.xml
+      - run: sed -i 's/import rikka.shizuku.ShizukuRemoteProcess;//g' app/src/main/java/com/danzstraight/vip/MainActivity.java
+      - run: sed -i 's/ShizukuRemoteProcess/Process/g' app/src/main/java/com/danzstraight/vip/MainActivity.java
+      - run: printf "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nandroid.enableJetifier=true\n" > gradle.properties
+      - run: printf "pluginManagement {\n repositories {\n google()\n mavenCentral()\n gradlePluginPortal()\n }\n}\ndependencyResolutionManagement {\n repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n repositories {\n google()\n mavenCentral()\n }\n}\nrootProject.name = 'DANZSTRAIGHT'\ninclude ':app'\n" > settings.gradle
+      - run: printf "plugins {\n id 'com.android.application' version '8.2.2' apply false\n}\n" > build.gradle
+      - run: printf "plugins {\n id 'com.android.application'\n}\nandroid {\n namespace 'com.danzstraight.vip'\n compileSdk 34\n defaultConfig {\n applicationId 'com.danzstraight.vip'\n minSdk 26\n targetSdk 34\n versionCode 3\n versionName '3.0-DIRECT-FF'\n }\n compileOptions {\n sourceCompatibility JavaVersion.VERSION_17\n targetCompatibility JavaVersion.VERSION_17\n }\n}\ndependencies {\n implementation 'dev.rikka.shizuku:api:13.1.5'\n implementation 'dev.rikka.shizuku:provider:13.1.5'\n}\n" > app/build.gradle
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle 8.4
-        uses: gradle/actions/setup-gradle@v3
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
-
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - run: gradle assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
         with:
           name: DANZSTRAIGHT-VIP-APK
           path: app/build/outputs/apk/debug/app-debug.apk
